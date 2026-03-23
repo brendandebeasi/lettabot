@@ -219,11 +219,14 @@ export function resolveConversationKey(
   conversationMode: string | undefined,
   conversationOverrides: Set<string>,
   chatId?: string,
+  threadId?: string,
   forcePerChat?: boolean,
 ): string {
   if (conversationMode === 'disabled') return 'default';
   const normalized = channel.toLowerCase();
-  if ((conversationMode === 'per-chat' || forcePerChat) && chatId) return `${normalized}:${chatId}`;
+  if ((conversationMode === 'per-chat' || forcePerChat) && chatId) {
+    return threadId ? `${normalized}:${chatId}:${threadId}` : `${normalized}:${chatId}`;
+  }
   if (conversationMode === 'per-channel') return normalized;
   if (conversationOverrides.has(normalized)) return normalized;
   return 'shared';
@@ -638,8 +641,8 @@ export class LettaBot implements AgentSession {
    * Returns 'shared' in shared mode (unless channel is in perChannel overrides).
    * Returns channel id in per-channel mode or for override channels.
    */
-  private resolveConversationKey(channel: string, chatId?: string, forcePerChat?: boolean): string {
-    return resolveConversationKey(channel, this.config.conversationMode, this.conversationOverrides, chatId, forcePerChat);
+  private resolveConversationKey(channel: string, chatId?: string, threadId?: string, forcePerChat?: boolean): string {
+    return resolveConversationKey(channel, this.config.conversationMode, this.conversationOverrides, chatId, threadId, forcePerChat);
   }
 
   /**
@@ -726,7 +729,7 @@ export class LettaBot implements AgentSession {
       }
     }
 
-    const convKey = this.resolveConversationKey(effective.channel, effective.chatId, effective.forcePerChat);
+    const convKey = this.resolveConversationKey(effective.channel, effective.chatId, effective.threadId, effective.forcePerChat);
     if (convKey !== 'shared') {
       this.enqueueForKey(convKey, effective, adapter);
     } else {
@@ -784,7 +787,7 @@ export class LettaBot implements AgentSession {
         // other channels/chats' conversations are never silently destroyed.
         // resolveConversationKey returns 'shared' for non-override channels,
         // the channel id for per-channel, or channel:chatId for per-chat.
-        const convKey = channelId ? this.resolveConversationKey(channelId, chatId, forcePerChat) : 'shared';
+        const convKey = channelId ? this.resolveConversationKey(channelId, chatId, undefined, forcePerChat) : 'shared';
 
         // In disabled mode the bot always uses the agent's built-in default
         // conversation -- there's nothing to reset locally.
@@ -815,7 +818,7 @@ export class LettaBot implements AgentSession {
         }
       }
       case 'cancel': {
-        const convKey = channelId ? this.resolveConversationKey(channelId, chatId, forcePerChat) : 'shared';
+        const convKey = channelId ? this.resolveConversationKey(channelId, chatId, undefined, forcePerChat) : 'shared';
 
         // Check if there's actually an active run for this conversation key
         if (!this.processingKeys.has(convKey) && !this.processing) {
@@ -1011,7 +1014,7 @@ export class LettaBot implements AgentSession {
     // queuing it for normal processing. This prevents a deadlock where
     // the stream is paused waiting for user input while the processing
     // flag blocks new messages from being handled.
-    const incomingConvKey = this.resolveConversationKey(msg.channel, msg.chatId, msg.forcePerChat);
+    const incomingConvKey = this.resolveConversationKey(msg.channel, msg.chatId, msg.threadId, msg.forcePerChat);
     const pendingResolver = this.pendingQuestionResolvers.get(incomingConvKey);
     if (pendingResolver) {
       log.info(`Intercepted message as AskUserQuestion answer from ${msg.userId} (key=${incomingConvKey})`);
@@ -1033,7 +1036,7 @@ export class LettaBot implements AgentSession {
       return;
     }
 
-    const convKey = this.resolveConversationKey(msg.channel, msg.chatId, msg.forcePerChat);
+    const convKey = this.resolveConversationKey(msg.channel, msg.chatId, msg.threadId, msg.forcePerChat);
     if (convKey !== 'shared') {
       // Per-channel, per-chat, or override mode: messages on different keys can run in parallel.
       this.enqueueForKey(convKey, msg, adapter);
@@ -1118,7 +1121,7 @@ export class LettaBot implements AgentSession {
 
         // Wait for the user's next message (intercepted by handleMessage).
         // Key by convKey so each chat resolves independently in per-chat mode.
-        const questionConvKey = this.resolveConversationKey(msg.channel, msg.chatId, msg.forcePerChat);
+        const questionConvKey = this.resolveConversationKey(msg.channel, msg.chatId, msg.threadId, msg.forcePerChat);
         const answer = await new Promise<string>((resolve) => {
           this.pendingQuestionResolvers.set(questionConvKey, resolve);
         });
@@ -1293,7 +1296,7 @@ export class LettaBot implements AgentSession {
     // Run session
     let session: Session | null = null;
     try {
-      const convKey = this.resolveConversationKey(msg.channel, msg.chatId, msg.forcePerChat);
+      const convKey = this.resolveConversationKey(msg.channel, msg.chatId, msg.threadId, msg.forcePerChat);
       const seq = ++this.sendSequence;
       const userText = msg.text || '';
       log.info(`processMessage seq=${seq} key=${convKey} retried=${retried} user=${msg.userId} textLen=${userText.length}`);
@@ -1619,7 +1622,7 @@ export class LettaBot implements AgentSession {
               }
 
               // Retry/recovery logic
-              const retryConvKey = this.resolveConversationKey(msg.channel, msg.chatId, msg.forcePerChat);
+              const retryConvKey = this.resolveConversationKey(msg.channel, msg.chatId, msg.threadId, msg.forcePerChat);
               const retryConvIdFromStore = (retryConvKey === 'shared'
                 ? this.store.conversationId
                 : this.store.getConversationId(retryConvKey)) ?? undefined;
@@ -1858,7 +1861,7 @@ export class LettaBot implements AgentSession {
         log.error('Failed to send error message to channel:', sendError);
       }
     } finally {
-      const finalConvKey = this.resolveConversationKey(msg.channel, msg.chatId, msg.forcePerChat);
+      const finalConvKey = this.resolveConversationKey(msg.channel, msg.chatId, msg.threadId, msg.forcePerChat);
       // When session reuse is disabled, invalidate after every message to
       // eliminate any possibility of stream state bleed between sequential
       // sends. Costs ~5s subprocess init overhead per message.

@@ -93,24 +93,28 @@ describe('resolveConversationKey', () => {
   // --- forcePerChat ---
 
   it('forcePerChat overrides shared mode to per-chat', () => {
-    expect(resolveConversationKey('discord', 'shared', new Set(), '99999', true)).toBe('discord:99999');
+    expect(resolveConversationKey('discord', 'shared', new Set(), '99999', undefined, true)).toBe('discord:99999');
   });
 
   it('forcePerChat overrides per-channel mode to per-chat', () => {
-    expect(resolveConversationKey('discord', 'per-channel', new Set(), '99999', true)).toBe('discord:99999');
+    expect(resolveConversationKey('discord', 'per-channel', new Set(), '99999', undefined, true)).toBe('discord:99999');
   });
 
   it('forcePerChat without chatId falls back normally', () => {
-    expect(resolveConversationKey('discord', 'shared', new Set(), undefined, true)).toBe('shared');
+    expect(resolveConversationKey('discord', 'shared', new Set(), undefined, undefined, true)).toBe('shared');
   });
 
   it('forcePerChat still respects disabled mode', () => {
-    expect(resolveConversationKey('discord', 'disabled', new Set(), '99999', true)).toBe('default');
+    expect(resolveConversationKey('discord', 'disabled', new Set(), '99999', undefined, true)).toBe('default');
   });
 
   it('forcePerChat=false does not change behavior', () => {
-    expect(resolveConversationKey('discord', 'shared', new Set(), '99999', false)).toBe('shared');
-    expect(resolveConversationKey('discord', 'per-channel', new Set(), '99999', false)).toBe('discord');
+    expect(resolveConversationKey('discord', 'shared', new Set(), '99999', undefined, false)).toBe('shared');
+    expect(resolveConversationKey('discord', 'per-channel', new Set(), '99999', undefined, false)).toBe('discord');
+  });
+
+  it('returns channel:chatId:threadId in per-chat mode for topic messages', () => {
+    expect(resolveConversationKey('telegram', 'per-chat', new Set(), '-100123', '456')).toBe('telegram:-100123:456');
   });
 });
 
