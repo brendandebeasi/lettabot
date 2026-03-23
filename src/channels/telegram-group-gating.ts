@@ -97,6 +97,9 @@ export function applyTelegramGroupGating(params: TelegramGroupGatingParams): Tel
   }
 
   // Step 1c: Topic allowlist (Telegram forum topics)
+  // NOTE: General topic messages have no message_thread_id (threadId is undefined),
+  // so they are implicitly blocked when allowedTopics is configured. To include
+  // General, omit allowedTopics entirely or leave it empty.
   const allowedTopics = resolveAllowedTopics(groupsConfig, [chatId]);
   if (allowedTopics && allowedTopics.length > 0) {
     if (!params.threadId || !allowedTopics.includes(params.threadId)) {

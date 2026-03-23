@@ -678,14 +678,16 @@ export class TelegramAdapter implements ChannelAdapter {
     const input = new InputFile(file.filePath);
     const caption = file.caption || undefined;
 
+    const threadOpts = file.threadId ? { message_thread_id: Number(file.threadId) } : {};
+
     if (file.kind === 'image') {
-      const result = await this.bot.api.sendPhoto(file.chatId, input, { caption });
+      const result = await this.bot.api.sendPhoto(file.chatId, input, { caption, ...threadOpts });
       return { messageId: String(result.message_id) };
     }
 
     if (file.kind === 'audio') {
       try {
-        const result = await this.bot.api.sendVoice(file.chatId, input, { caption });
+        const result = await this.bot.api.sendVoice(file.chatId, input, { caption, ...threadOpts });
         return { messageId: String(result.message_id) };
       } catch (err: any) {
         const reason = getTelegramErrorReason(err);
@@ -696,7 +698,7 @@ export class TelegramAdapter implements ChannelAdapter {
         }
         log.warn('sendVoice failed with VOICE_MESSAGES_FORBIDDEN, falling back to sendAudio:', reason);
         try {
-          const result = await this.bot.api.sendAudio(file.chatId, new InputFile(file.filePath), { caption });
+          const result = await this.bot.api.sendAudio(file.chatId, new InputFile(file.filePath), { caption, ...threadOpts });
           return { messageId: String(result.message_id) };
         } catch (fallbackErr: any) {
           const fallbackReason = getTelegramErrorReason(fallbackErr);
@@ -706,7 +708,7 @@ export class TelegramAdapter implements ChannelAdapter {
       }
     }
 
-    const result = await this.bot.api.sendDocument(file.chatId, input, { caption });
+    const result = await this.bot.api.sendDocument(file.chatId, input, { caption, ...threadOpts });
     return { messageId: String(result.message_id) };
   }
   
