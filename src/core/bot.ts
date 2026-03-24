@@ -32,6 +32,7 @@ import {
 import { resolveEmoji } from './emoji.js';
 import { SessionManager } from './session-manager.js';
 import { createDisplayPipeline, type DisplayEvent, type CompleteEvent, type ErrorEvent } from './display-pipeline.js';
+import { sendToOpenCode } from './opencode-client.js';
 import { TurnLogger, TurnAccumulator, generateTurnId, type TurnRecord } from './turn-logger.js';
 
 
@@ -1075,7 +1076,7 @@ export class LettaBot implements AgentSession {
     }
   }
 
-  private async processKeyedQueue(key: string): Promise<void> {
+   private async processKeyedQueue(key: string): Promise<void> {
     if (this.processingKeys.has(key)) return;
     this.processingKeys.add(key);
 
@@ -1083,7 +1084,11 @@ export class LettaBot implements AgentSession {
     while (queue && queue.length > 0) {
       const { msg, adapter } = queue.shift()!;
       try {
-        await this.processMessage(msg, adapter);
+        if (msg.topicName && process.env.OPENCODE_DIRECT !== '0') {
+          await this.processViaOpenCode(msg, adapter);
+        } else {
+          await this.processMessage(msg, adapter);
+        }
       } catch (error) {
         log.error(`Error processing message (key=${key}):`, error);
       }
@@ -1091,6 +1096,39 @@ export class LettaBot implements AgentSession {
 
     this.processingKeys.delete(key);
     this.keyedQueues.delete(key);
+  }
+
+  private async processViaOpenCode(msg: InboundMessage, adapter: ChannelAdapter): Promise<void> {
+    const projectDir = `/root/git/${msg.topicName}`;
+    const userText = msg.text || '';
+    log.info(`[OpenCode Direct] topic=${msg.topicName} dir=${projectDir} textLen=${userText.length}`);
+
+    adapter.sendTypingIndicator(msg.chatId).catch(() => {});
+    const typingInterval = setInterval(() => {
+      adapter.sendTypingIndicator(msg.chatId).catch(() => {});
+    }, 4000);
+
+    let cancelButtonMsgId: string | undefined;
+    if (adapter.sendCancelButton) {
+      adapter.sendCancelButton(msg.chatId, msg.threadId, `cancel:opencode`)
+        .then(id => { cancelButtonMsgId = id; })
+        .catch(() => {});
+    }
+
+    try {
+      const result = await sendToOpenCode(userText, projectDir);
+      await adapter.sendMessage({ chatId: msg.chatId, text: result.text, threadId: msg.threadId });
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      log.error(`[OpenCode Direct] error: ${errMsg}`);
+      await adapter.sendMessage({ chatId: msg.chatId, text: `Error: ${errMsg}`, threadId: msg.threadId });
+    } finally {
+      clearInterval(typingInterval);
+      adapter.stopTypingIndicator?.(msg.chatId)?.catch(() => {});
+      if (cancelButtonMsgId && adapter.removeCancelButton) {
+        adapter.removeCancelButton(msg.chatId, cancelButtonMsgId).catch(() => {});
+      }
+    }
   }
 
   private async processQueue(): Promise<void> {
