@@ -82,6 +82,7 @@ export class TelegramAdapter implements ChannelAdapter {
   
   onMessage?: (msg: InboundMessage) => Promise<void>;
   onCommand?: (command: string, chatId?: string, args?: string) => Promise<string | null>;
+  onCancelButton?: (chatId: string, threadId?: string) => Promise<string>;
   
   constructor(config: TelegramConfig) {
     this.config = {
@@ -151,7 +152,48 @@ export class TelegramAdapter implements ChannelAdapter {
     return checkDmAccess('telegram', userId, this.config.dmPolicy, configAllowlist);
   }
   
+  async sendCancelButton(chatId: string, threadId?: string, cancelData?: string): Promise<string> {
+    const result = await this.bot.api.sendMessage(chatId, '⏳ Working on it...', {
+      message_thread_id: threadId ? Number(threadId) : undefined,
+      reply_markup: {
+        inline_keyboard: [[{ text: '✕ Cancel', callback_data: cancelData || 'cancel' }]],
+      },
+    });
+    return String(result.message_id);
+  }
+
+  async removeCancelButton(chatId: string, messageId: string): Promise<void> {
+    try {
+      await this.bot.api.deleteMessage(chatId, Number(messageId));
+    } catch {
+      try {
+        await this.bot.api.editMessageReplyMarkup(chatId, Number(messageId), { reply_markup: { inline_keyboard: [] } });
+      } catch { /* best effort */ }
+    }
+  }
+
   private setupHandlers(): void {
+    this.bot.on('callback_query:data', async (ctx) => {
+      const data = ctx.callbackQuery.data;
+      if (!data.startsWith('cancel')) {
+        await ctx.answerCallbackQuery();
+        return;
+      }
+      const chatId = String(ctx.callbackQuery.message?.chat.id || '');
+      const threadId = (ctx.callbackQuery.message as any)?.message_thread_id
+        ? String((ctx.callbackQuery.message as any).message_thread_id)
+        : undefined;
+      if (this.onCancelButton) {
+        const result = await this.onCancelButton(chatId, threadId);
+        await ctx.answerCallbackQuery({ text: result });
+      } else {
+        await ctx.answerCallbackQuery({ text: 'Cancel not available' });
+      }
+      try {
+        await ctx.deleteMessage();
+      } catch { /* best effort */ }
+    });
+
     // Detect when bot is added/removed from groups (proactive group gating)
     this.bot.on('my_chat_member', async (ctx) => {
       const chatMember = ctx.myChatMember;

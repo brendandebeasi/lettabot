@@ -684,6 +684,11 @@ export class LettaBot implements AgentSession {
   registerChannel(adapter: ChannelAdapter): void {
     adapter.onMessage = (msg) => this.handleMessage(msg, adapter);
     adapter.onCommand = (cmd, chatId, args, forcePerChat) => this.handleCommand(cmd, adapter.id, chatId, args, forcePerChat);
+    adapter.onCancelButton = async (chatId: string, threadId?: string) => {
+      const convKey = this.resolveConversationKey(adapter.id, chatId, threadId, false);
+      const result = await this.handleCommand('cancel', adapter.id, chatId, undefined, false);
+      return result || 'Cancelled';
+    };
 
     // Wrap outbound methods when any redaction layer is active.
     // Secrets are enabled by default unless explicitly disabled.
@@ -1389,6 +1394,13 @@ export class LettaBot implements AgentSession {
         adapter.sendTypingIndicator(msg.chatId).catch(() => {});
       }, 4000);
 
+      let cancelButtonMsgId: string | undefined;
+      if (adapter.sendCancelButton) {
+        adapter.sendCancelButton(msg.chatId, msg.threadId, `cancel:${convKey}`)
+          .then(id => { cancelButtonMsgId = id; })
+          .catch(() => {});
+      }
+
       const turnId = this.turnLogger ? generateTurnId() : '';
       const turnAcc = this.turnLogger ? new TurnAccumulator() : null;
       let turnWritten = false;
@@ -1746,6 +1758,9 @@ export class LettaBot implements AgentSession {
       } finally {
         clearInterval(typingInterval);
         adapter.stopTypingIndicator?.(msg.chatId)?.catch(() => {});
+        if (cancelButtonMsgId && adapter.removeCancelButton) {
+          adapter.removeCancelButton(msg.chatId, cancelButtonMsgId).catch(() => {});
+        }
         // Write turn record (even partial turns on cancel/error)
         if (this.turnLogger && turnAcc && !turnWritten) {
           turnWritten = true;

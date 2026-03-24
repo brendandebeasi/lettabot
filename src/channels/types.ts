@@ -30,10 +30,13 @@ export interface ChannelAdapter {
   addReaction?(chatId: string, messageId: string, emoji: string): Promise<void>;
   getDmPolicy?(): string;
   getFormatterHints(): FormatterHints;
+  sendCancelButton?(chatId: string, threadId?: string, cancelData?: string): Promise<string>;
+  removeCancelButton?(chatId: string, messageId: string): Promise<void>;
   
   // Event handlers (set by bot core)
   onMessage?: (msg: InboundMessage) => Promise<void>;
   onCommand?: (command: string, chatId?: string, args?: string, forcePerChat?: boolean) => Promise<string | null>;
+  onCancelButton?: (chatId: string, threadId?: string) => Promise<string>;
 }
 
 /**
