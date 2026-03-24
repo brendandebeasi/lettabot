@@ -630,11 +630,12 @@ export class TelegramAdapter implements ChannelAdapter {
     }).catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('terminated by other getUpdates request') || msg.includes('409')) {
-        log.error(`getUpdates conflict (likely old instance still polling). Retrying in 5s...`);
+        log.error(`getUpdates conflict (likely old instance still polling). Retrying in 10s...`);
+        this.bot.stop().catch(() => {});
         setTimeout(() => {
           this.running = false;
           this.start().catch(e => log.error('Retry failed:', e));
-        }, 5000);
+        }, 10000);
       } else {
         log.error('Bot polling error:', err);
       }
