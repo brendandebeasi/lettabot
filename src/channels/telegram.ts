@@ -630,8 +630,10 @@ export class TelegramAdapter implements ChannelAdapter {
     }).catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('terminated by other getUpdates request') || msg.includes('409')) {
-        log.error(`getUpdates conflict — exiting so systemd can restart cleanly`);
-        process.exit(1);
+        log.warn(`getUpdates conflict (another poller active). Will retry in 10s.`);
+        this.bot.stop().catch(() => {});
+        this.running = false;
+        setTimeout(() => this.start().catch(() => {}), 10000);
       } else {
         log.error('Bot polling error:', err);
       }
