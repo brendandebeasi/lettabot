@@ -393,6 +393,7 @@ export class TelegramAdapter implements ChannelAdapter {
           wasMentioned,
           isListeningMode,
           threadId: ctx.message.is_topic_message ? String(ctx.message.message_thread_id) : undefined,
+          topicName: (ctx.message as any).reply_to_message?.forum_topic_created?.name as string | undefined,
           formatterHints: this.getFormatterHints(),
         });
       }
@@ -501,6 +502,7 @@ export class TelegramAdapter implements ChannelAdapter {
             wasMentioned,
             isListeningMode,
             threadId: ctx.message.is_topic_message ? String(ctx.message.message_thread_id) : undefined,
+          topicName: (ctx.message as any).reply_to_message?.forum_topic_created?.name as string | undefined,
             formatterHints: this.getFormatterHints(),
           });
         }
@@ -521,6 +523,7 @@ export class TelegramAdapter implements ChannelAdapter {
             wasMentioned,
             isListeningMode,
             threadId: ctx.message.is_topic_message ? String(ctx.message.message_thread_id) : undefined,
+          topicName: (ctx.message as any).reply_to_message?.forum_topic_created?.name as string | undefined,
             formatterHints: this.getFormatterHints(),
           });
         }
@@ -557,6 +560,7 @@ export class TelegramAdapter implements ChannelAdapter {
           isListeningMode,
           attachments,
           threadId: ctx.message.is_topic_message ? String(ctx.message.message_thread_id) : undefined,
+          topicName: (ctx.message as any).reply_to_message?.forum_topic_created?.name as string | undefined,
           formatterHints: this.getFormatterHints(),
         });
       }

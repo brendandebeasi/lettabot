@@ -248,6 +248,9 @@ function buildChatContextLines(msg: InboundMessage, options: EnvelopeOptions): s
         lines.push(`- **Group**: ${msg.groupName}`);
       }
     }
+    if (msg.topicName) {
+      lines.push(`- **Topic**: ${msg.topicName}`);
+    }
     if (msg.wasMentioned) {
       lines.push(`- **Mentioned**: yes`);
     }

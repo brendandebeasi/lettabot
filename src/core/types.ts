@@ -101,7 +101,8 @@ export interface InboundMessage {
   messageId?: string;     // Platform-specific message ID (for reactions, etc.)
   text: string;
   timestamp: Date;
-  threadId?: string;      // Slack thread_ts
+  threadId?: string;      // Slack thread_ts / Telegram forum topic thread ID
+  topicName?: string;     // Telegram forum topic name (from forum_topic_created)
   messageType?: MessageType; // 'dm', 'group', or 'public' (defaults to 'dm')
   isGroup?: boolean;      // True if group chat (convenience alias for messageType === 'group')
   groupName?: string;     // Group/channel name if applicable
