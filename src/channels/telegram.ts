@@ -523,13 +523,16 @@ export class TelegramAdapter implements ChannelAdapter {
         let messageText: string;
         if (result.success && result.text) {
           log.info(`Transcribed voice message: "${result.text.slice(0, 50)}..."`);
-          messageText = `[Voice message]: ${result.text}`;
+          messageText = result.text;
+          await ctx.reply(`🎙️ *Heard:* ${result.text}`, {
+            parse_mode: 'Markdown',
+            reply_to_message_id: ctx.message.message_id,
+          });
         } else {
           log.error(`Transcription failed: ${result.error}`);
           messageText = `[Voice message - transcription failed: ${result.error}]`;
         }
 
-        // Send to agent
         if (this.onMessage) {
           await this.onMessage({
             channel: 'telegram',
